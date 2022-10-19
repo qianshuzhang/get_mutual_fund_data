@@ -71,6 +71,31 @@ def del_index_fund(funds6):
                     (~funds7['namex'].str.contains('2050')) & (~funds7['namex'].str.contains('2055'))]
     return funds7
 
+def get_tna_ret(tna_ret_nav,fund_fees,equity_funds):
+    returns1 = pd.merge(equity_funds, tna_ret_nav, on='crsp_fundno')
+    returns1.rename(columns={'caldt': 'date'}, inplace=True)
+    returns2 = pd.merge(returns1, fund_fees, on='crsp_fundno')
+    returns2 = returns2[(returns2['date'] >= returns2['begdt_y']) & (returns2['date'] <= returns2['enddt'])]
+    returns2['rret'] = returns2['mret'] + returns2['exp_ratio'] / 12
+    returns2.sort_values(by=['crsp_fundno', 'date','wficn'], inplace=True)
+
+    returns2['flag'] = (returns2.crsp_fundno != returns2.crsp_fundno.shift()).astype(int)
+    returns2['weight'] = returns2['mtna'].shift()
+    returns2.loc[returns2['flag'] == 1, 'weight'] = returns2.loc[returns2['flag'] == 1, 'mtna']
+
+    # keep only observations dated after the fund's first offer date.
+    returns2 = returns2[returns2['date'] > returns2['first_offer_dt']]
+    returns2=returns2[returns2['date']>returns2['begdt_x']]
+    returns2.sort_values(by=['wficn', 'date'], inplace=True)   
+
+    return returns2
+
+
+
+
+
+
+
 
 
 

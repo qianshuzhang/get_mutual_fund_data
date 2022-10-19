@@ -75,3 +75,8 @@ def get_equity_fund(style,names,fund_summary,mflink):
 
     return equity_funds
 
+equity_funds = get_equity_fund(style,names,fund_summary,mflink)
+
+returns_tmp = select_func.get_tna_ret(tna_ret_nav,fund_fees,equity_funds)
+
+
