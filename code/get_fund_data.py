@@ -56,7 +56,7 @@ def get_equity_fund(style,names,fund_summary,mflink):
     # merge long way and short way
     funds3 = pd.merge(funds,funds2)
 
-    # look for funds that have flip-flopped their style; can choose from funds, funds2 or funds3
+    # look for funds that have flip-flopped their style; can choose funds, funds2 or funds3
     funds4 = select_func.get_flipper(funds2,style)
 
     # choose max flipper as flipper 
@@ -79,4 +79,22 @@ equity_funds = get_equity_fund(style,names,fund_summary,mflink)
 
 returns_tmp = select_func.get_tna_ret(tna_ret_nav,fund_fees,equity_funds)
 
+# aggregate multiple share class
+returns = select_func.aggregate(returns_tmp)
 
+# We also exclude fund observations before a fund passes the $5 million threshold for assets under management (AUM).
+# All subsequent observations, including those that fall under the $5 million AUM threshold in the future, are included.
+mtna_group = 5
+returns = select_func.ex_tna(mtna_group, returns)
+
+# exclude funds with TNA on average less than $5 million
+returns = select_func.ex_avg_tna(mtna_group, returns)
+
+# exclude funds with less than 36 months of observations
+month = 36
+returns = select_func.ex_obs(returns,month)
+
+# at least 30 ret obs in last 36 months
+time_interval = 36
+least_month = 30
+returns = select_func.ex_least_obs(returns, time_interval, least_month)

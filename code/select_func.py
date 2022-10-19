@@ -88,14 +88,110 @@ def get_tna_ret(tna_ret_nav,fund_fees,equity_funds):
     returns2=returns2[returns2['date']>returns2['begdt_x']]
     returns2.sort_values(by=['wficn', 'date'], inplace=True)   
 
+    # get share class weight, for aggregating
+    returns2['flag'] = (returns2.crsp_fundno != returns2.crsp_fundno.shift()).astype(int)
+    returns2['weight'] = returns2['mtna'].shift()
+    returns2.loc[returns2['flag'] == 1, 'weight'] = returns2.loc[returns2['flag'] == 1, 'mtna']
+    returns2['age'] = (returns2['end_dt'] - returns2['first_offer_dt'])
+    
+    # keep only observations dated after the fund's first offer date.
+    returns2 = returns2[returns2['date'] > returns2['first_offer_dt']]
+    returns2=returns2[returns2['date']>returns2['begdt_x']]
+
     return returns2
 
+def aggregate(returns_tmp):
+    mret = returns_tmp.groupby(['wficn', 'date']).apply(lambda x: np.nansum(x['mret']*x['weight'])/np.nansum(x['weight']))
+    returns = mret.reset_index()
+    returns.columns = ['wficn', 'date', 'mret']
 
+    # monthly total net assets
+    mtna = returns_tmp.groupby(['wficn', 'date']).apply(lambda x: np.nansum(x['mtna']))
+    mtna = mtna.reset_index()
+    returns['mtna'] = mtna[0]
 
+    # gross return
+    rret = returns_tmp.groupby(['wficn', 'date']).apply(lambda x: np.nansum(x['rret']*x['weight'])/np.nansum(x['weight']))
+    rret = rret.reset_index()
+    returns['rret'] = rret[0]
 
+    # turnover ratio
+    turnover = returns_tmp.groupby(['wficn', 'date']).apply(lambda x: np.nansum(x['turn_ratio']*x['weight'])/np.nansum(x['weight']))
+    turnover = turnover.reset_index()
+    returns['turnover'] = turnover[0]
 
+    # expense ratio
+    expense = returns_tmp.groupby(['wficn', 'date']).apply(lambda x: np.nansum(x['exp_ratio']*x['weight'])/np.nansum(x['weight']))
+    expense = expense.reset_index()
+    returns['exp_ratio'] = expense[0]
+    returns['exp_ratio']=returns['exp_ratio']/12
 
+    # fund age
+    age = returns_tmp.groupby(['wficn', 'date']).apply(lambda x: np.max(x['age']))
+    age = age.reset_index()
+    returns['age'] = age[0]
 
+    # fund flow
+    returns['cum_ret'] = (1 + returns['mret']).rolling(12).apply(np.prod, raw=True) - 1
+    returns['flow'] = (returns['mtna'] - returns.groupby(['wficn'])['mtna'].shift(12) * returns['cum_ret']) / \
+                    returns.groupby(['wficn'])['mtna'].shift(12)
+    returns.loc[returns['flow'] > 1000, 'flow'] = np.nan
+    returns['flow']=returns['flow'].replace(np.inf,np.nan)
+    returns['flow']=returns['flow']*100
+
+    # fund vol
+    returns['vol'] = returns.groupby(['wficn'])['mret'].rolling(12).std().reset_index()['mret']
+
+    return returns
+
+# We also exclude fund observations before a fund passes the $5 million threshold for assets under management (AUM).
+# All subsequent observations, including those that fall under the $5 million AUM threshold in the future, are included.
+
+def ex_tna(returns, mtna_group = 5):
+    returns['tna_ind'] = 0
+    for w in returns['wficn'].unique():
+        for index, row in returns[returns['wficn'] == w].iterrows():
+            if row['mtna'] < mtna_group:
+                returns.at[index, 'tna_ind'] += 1
+            else:
+                break
+
+    returns.drop(index=returns[returns['tna_ind'] == 1].index, inplace=True)
+    del returns['tna_ind']
+
+    return returns
+
+def ex_avg_tna( returns, mtna_group = 5):
+    avg_tna=returns.groupby(['wficn'])['mtna'].mean()
+    avg_tna=avg_tna.reset_index()
+    avg_tna.columns=['wficn','avg_tna']
+    returns=pd.merge(returns,avg_tna)
+    returns = returns[returns['avg_tna'] >= mtna_group]
+    del returns['avg_tna']
+
+    return returns
+
+def ex_obs(returns, month = 36):
+    obs = returns.groupby(['wficn'])['mtna'].count()
+    obs = obs.reset_index()
+    obs.columns = ['wficn', 'obs']
+    returns = pd.merge(returns, obs)
+    returns = returns[returns['obs'] >= month]
+
+    return returns
+
+def ex_least_obs(returns, time_interval = 36, least_month = 30):
+    returns['ret_bool']=returns['mret'].isna()
+    aum = returns.sort_values(by=['wficn', 'date'], ascending=False).groupby(['wficn']).head(time_interval)
+    ret_nan=aum.groupby(['wficn'])['ret_bool'].sum()
+    ret_nan=ret_nan.reset_index()
+    ret_nan.columns=['wficn', 'ret_ratio']
+    returns = pd.merge(returns, ret_nan)
+    returns=returns[returns['ret_ratio']<=time_interval-least_month]
+
+    return returns
+
+    
 
 
 
