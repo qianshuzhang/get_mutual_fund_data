@@ -191,7 +191,109 @@ def ex_least_obs(returns, time_interval = 36, least_month = 30):
 
     return returns
 
+def get_abr(ff_monthly,returns):
+    ff_monthly['date'] = ff_monthly['dateff'] 
+    ret_ff = pd.merge(returns, ff_monthly, on='date', how='left')
+    ret_ff['exc_ret'] = ret_ff['rret'] - ret_ff['rf']
+    ret_ff['Market_adj_ret'] = ret_ff['rret'] - ret_ff['mktrf']
+
+    df_group = ret_ff.groupby('wficn')
+    reg_result = []
+    for k, g in df_group:
+        endog=g['exc_ret']
+        exog=sm.add_constant(g[['mktrf','smb','hml','umd']])
+        mod = RollingOLS(endog, exog, window=36, min_nobs=30,expanding=True,missing='drop')
+        rolling_res = mod.fit()
+        reg_result.append(rolling_res.params.shift())
+
+    reg_result_all=pd.concat(reg_result)
+    reg_result_all.columns=['alpha','beta_mkt','beta_smb','beta_hml','beta_umd']
+    returns_abr=pd.concat([ret_ff,reg_result_all],axis=1)
+    returns_abr.dropna(subset=['alpha'],inplace=True)
+    returns_abr['abr']=returns_abr['exc_ret']-returns_abr['beta_mkt']*returns_abr['mktrf']-returns_abr['beta_smb']*returns_abr['smb']-returns_abr['beta_hml']*returns_abr['hml']-returns_abr['beta_umd']*returns_abr['umd']
+    return returns_abr
+
+
+def get_holding(returns_abr,fund_char_result):
+    returns_wficn=returns_abr['wficn'].unique()
+    fund_char_result=fund_char_result[fund_char_result['wficn'].isin(returns_wficn)]
+    returns_abr['month']=returns_abr['date'].astype(str).apply(lambda x:x[0:7])
+    returns_char=pd.merge(returns_abr,fund_char_result,on=['wficn','month'])
+
+    return returns_char
+
+def standardize(df):
+    df_temp = df.groupby(['date'], as_index=False)['wficn'].count()
+    df_temp = df_temp.rename(columns={'wficn': 'count'})
+    df = pd.merge(df, df_temp, how='left', on='date')
+    col_names = df.columns.values.tolist()
+    list_to_remove = ['wficn', 'date', 'count','mret', 'mtna', 'rret', 'turnover', 'exp_ratio', 'age', 'flow', 'vol','mktrf', 'smb', 'hml', 'rf', 'year', 'month', 'umd',
+       'dateff', 'exc_ret', 'Market_adj_ret', 'alpha', 'beta_mkt', 'beta_smb',
+       'beta_hml', 'beta_umd', 'abr', 'log_me', 'lag_me',]
+    col_names = list(set(col_names).difference(set(list_to_remove)))
+    df = df.fillna(0)
+    for col_name in col_names:
+        df['%s_rank' % col_name] = df.groupby(['date'])['%s' % col_name].rank()
+        df[col_name] = (df['%s_rank' % col_name]-1)/(df['count']-1)*2 - 1
+        df = df.drop(['%s_rank' % col_name], axis=1)
+    return df
+
+def rank_macro_factor(returns_char,add_factor,macro):
+    returns_char = standardize(returns_char)
+    returns_char['date']=pd.to_datetime(returns_char['date'])
+
+    add_factor['date']=add_factor['date'].apply(lambda x : datetime.datetime.strptime(x,'%d/%m/%Y'))
+    add_factor['month']=add_factor['date'].astype(str).apply(lambda x : x[0:7])
     
+    macro['date']=macro['date'].apply(lambda x : datetime.datetime.strptime(x,'%Y/%m/%d'))
+    macro['month']=macro['date'].astype(str).apply(lambda x : x[0:7])
+    del add_factor['date']
+    del macro['date']
+    returns_char=returns_char.merge(add_factor,on=['month'],how='left')
+    returns_char=returns_char.merge(macro,on=['month'],how='left')
+    returns_char.rename(columns={'rank_rvar_mean':'rank_svar'},inplace=True)
+    returns_char['weight']=returns_char.groupby(['wficn'])['mtna'].shift()
 
+    return returns_char
 
+def get_summary(returns):
+    list = ['turnover', 'age', 'flow', 'exp_ratio', 'mtna', 'vol','abr']
 
+    Num = []
+    for i in list:
+        Num.append((~returns[i].isna()).sum())
+
+    Mean = []
+    for i in list:
+        Mean.append(returns[i].mean())
+    Mean[1] = returns.groupby(['wficn'])['age'].mean().mean()
+    Mean[3] = Mean[3] * 100
+    Mean[6] = Mean[6] * 100
+
+    Std = []
+    for i in list:
+        Std.append(returns[i].std())
+    Std[1] = returns.groupby(['wficn'])['age'].mean().std()
+    Std[6] = Std[6] * 100
+
+    Med = []
+    for i in list:
+        Med.append(returns[i].median())
+    Med[1] = returns.groupby(['wficn'])['age'].mean().median()
+    Med[6] = Med[6] * 100
+
+    p10 = []
+    for i in list:
+        p10.append(np.nanpercentile(returns[i], 10))
+    p10[1] = np.nanpercentile(returns.groupby(['wficn'])['age'].mean(), 10)
+
+    p90 = []
+    for i in list:
+        p90.append(np.nanpercentile(returns[i], 90))
+    p90[1] = np.nanpercentile(returns.groupby(['wficn'])['age'].mean(), 90)
+
+    summary = pd.DataFrame([])
+    for i in ['Num', 'Mean', 'Std', 'Med', 'p10', 'p90']:
+        summary[i] = eval(i)
+    summary.index = list
+    return summary

@@ -30,8 +30,14 @@ with open('/home/qianshu/mutual_fund/data/qs1/tna_ret_nav.feather','rb') as f:
     tna_ret_nav=feather.read_feather(f)
 with open('/home/qianshu/mutual_fund/data/qs1/fund_fees.feather','rb') as f:
     fund_fees=feather.read_feather(f)
-
-
+with open('/home/qianshu/mutual_fund/data/qs1/holdings.feather','rb') as f:
+    holdings=feather.read_feather(f)
+with open('/home/qianshu/mutual_fund/data/qs1/ff_monthly.feather', 'rb') as f:
+    ff_monthly=feather.read_feather(f)
+with open('/home/qianshu/mutual_fund/data/qs1/fund_char_result.feather','rb') as f:
+    fund_char_result=feather.read_feather(f)
+add_factor = pd.read_csv('../data/addition_factors_20220827.csv')
+macro = pd.read_csv('../data/xt_1972_2021_20220804.csv')
 ##########################
 # several objective code #
 ##########################
@@ -98,3 +104,15 @@ returns = select_func.ex_obs(returns,month)
 time_interval = 36
 least_month = 30
 returns = select_func.ex_least_obs(returns, time_interval, least_month)
+
+# calculate abnormal return : mret adjusted by four factor
+returns_abr = select_func.get_abr(ff_monthly, returns)
+
+# get holding
+returns_char = select_func.get_holding(returns_abr, fund_char_result)
+
+# merge factor and macro,standardize
+returns_char = select_func.rank_macro_factor(returns_char, add_factor, macro)
+
+# get summary table
+summary = select_func.get_summary(returns_char)
