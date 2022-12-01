@@ -396,7 +396,7 @@ def standard_fund_char(df):
     df_temp = df_temp.rename(columns={'wficn': 'count'})
     df = pd.merge(df, df_temp, how='left', on='date')
     #col_names = df.columns.values.tolist()
-    col_names = list(['exp_ratio','turnover','mtna','age','mom12m','mom1m','mom36m','vol','flow_vol','capm_rvar','capm_alpha','capm_beta','mgr_tenure'])
+    col_names = list(['exp_ratio','turnover','mtna','age','fundmom12m','fundmom1m','fundmom36m','vol','flow_vol','capm_rvar','capm_alpha','capm_beta','mgr_tenure'])
     #df = df.fillna(0)
     for col_name in col_names:
         df['%s_rank' % col_name] = df.groupby(['date'])['%s' % col_name].rank()
@@ -406,9 +406,9 @@ def standard_fund_char(df):
     return df
 
 def get_fund_mom(returns_char):
-    returns_char['mom1m'] = mom(0,1,returns_char)
-    returns_char['mom12m'] = mom(1,12,returns_char)
-    returns_char['mom36m'] = mom(12,36,returns_char)
+    returns_char['fundmom1m'] = mom(0,1,returns_char)
+    returns_char['fundmom12m'] = mom(1,12,returns_char)
+    returns_char['fundmom36m'] = mom(12,36,returns_char)
     returns_char['exc_ret'] = returns_char['mret']-returns_char['RF']
     return returns_char
 
