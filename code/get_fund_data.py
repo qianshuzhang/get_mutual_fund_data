@@ -117,6 +117,11 @@ returns = returns[['wficn','date','mret','mtna','rret','turnover','exp_ratio','a
 # get holding
 returns_char = select_func.get_holding(returns, fund_char_result)
 
+# shift date mret rret
+for char in ['date','mret','rret','month']:
+    returns_char[char] =returns_char.groupby(['wficn'])[char].shift(-1)
+returns_char = returns_char.dropna(subset=['date','mret','rret','month']).reset_index(drop=True)
+
 # merge factor and macro,standardize
 returns_char = select_func.rank_macro_factor(returns_char, add_factor, macro)
 
@@ -132,8 +137,6 @@ returns_char = select_func.get_fund_ff4(returns_char)
 # standardize fund charateristics
 returns_char = select_func.standard_fund_char(returns_char)
 
-# shift fund return,date to get lag char
-returns_char = select_func.shift_fund_date_ret(returns_char)
 
 # get summary table
 summary = select_func.get_summary(returns_char)
