@@ -87,23 +87,31 @@ reference : http://www-2.rotman.utoronto.ca/simutin/aw_code.asp
 
 	'mret': monthly net return (after fee) 
 
-	'mtna': monthly total net assets 
-
 	'rret': gross return (before fee) 
 
+# fund charateristics:
+	
+	'mtna': monthly total net assets 
+	
 	'turnover': turnover ratio 
 
 	'exp_ratio': expense ratio 
 
-	'age':fund age
+	'age':fund age in months
 
 	'flow':fund flow 
 
 	'vol': fund return volatility 
 
-	'mktrf', 'smb', 'hml', 'rf', 'umd': Fama French factor
+	'flow_vol': fund flow volatility
 
+	'mgr_tenure': fund manager's tenure in months
 
+	'capm_rvar': CAPM residual varience
+
+	'capm_alpha': CAPM regression intercept
+
+	'capm_beta': CAPM regression slope
 
 
 
