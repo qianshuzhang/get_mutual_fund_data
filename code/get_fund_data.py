@@ -16,28 +16,32 @@ import select_func
 ##########################
 #     load raw data      #
 ##########################
+datapath = '/home/qianshu/mutual_fund/data/qs1/'
 
-with open('/home/qianshu/mutual_fund/data/qs1/style.feather','rb') as f:
+with open(datapath+'style.feather','rb') as f:
     style=feather.read_feather(f)
-with open('/home/qianshu/mutual_fund/data/qs1/names.feather','rb') as f:
+with open(datapath+'names.feather','rb') as f:
     names=feather.read_feather(f)
-with open('/home/qianshu/mutual_fund/data/qs1/fund_summary.feather','rb') as f:
+with open(datapath+'fund_summary.feather','rb') as f:
     fund_summary=feather.read_feather(f)
-names.drop_duplicates(subset=['crsp_fundno'], keep='last', inplace=True)
-with open('/home/qianshu/mutual_fund/data/qs1/mflink.feather', 'rb') as f:
+last_names = names.drop_duplicates(subset=['crsp_fundno'], keep='last')
+with open(datapath+'mflink.feather', 'rb') as f:
     mflink=feather.read_feather(f)
-with open('/home/qianshu/mutual_fund/data/qs1/tna_ret_nav.feather','rb') as f:
+with open(datapath+'tna_ret_nav.feather','rb') as f:
     tna_ret_nav=feather.read_feather(f)
-with open('/home/qianshu/mutual_fund/data/qs1/fund_fees.feather','rb') as f:
+tna_ret_nav['mtna'] = tna_ret_nav['mtna'].replace(0,np.nan)
+tna_ret_nav.dropna(subset=['mret','mtna'],inplace=True)
+
+with open(datapath+'fund_fees.feather','rb') as f:
     fund_fees=feather.read_feather(f)
-with open('/home/qianshu/mutual_fund/data/qs1/holdings.feather','rb') as f:
+with open(datapath+'holdings.feather','rb') as f:
     holdings=feather.read_feather(f)
-with open('/home/qianshu/mutual_fund/data/qs1/ff_monthly.feather', 'rb') as f:
+with open(datapath+'ff_monthly.feather', 'rb') as f:
     ff_monthly=feather.read_feather(f)
-with open('/home/qianshu/mutual_fund/data/qs1/fund_char_result.feather','rb') as f:
+with open(datapath+'fund_char_result.feather','rb') as f:
     fund_char_result=feather.read_feather(f)
-add_factor = pd.read_csv('../data/addition_factors_20220827.csv')
-macro = pd.read_csv('../data/xt_1972_2021_20220804.csv')
+add_factor = pd.read_csv('/home/qianshu/US_factor/factor/30_factors.csv')
+macro = pd.read_csv('/home/qianshu/mutual_fund/fund_tree/data/addition_factors_20220827.csv')
 ##########################
 # several objective code #
 ##########################
@@ -49,7 +53,7 @@ lipper_obj_cd = ['CA', 'EI', 'G', 'GI', 'MC', 'MR', 'SG']
 si_obj_cd = ['AGG', 'GMC', 'GRI', 'GRO', 'ING', 'SCG']
 wbrger_obj_cd=['G', 'G-I', 'AGG', 'GCI', 'GRI', 'GRO', 'LTG', 'MCG','SCG']
 
-def get_equity_fund(style,names,fund_summary,mflink):
+def get_equity_fund(style,last_names,fund_summary,mflink):
     # investing on average less than 80% of their assets, excluding cash, in common stocks
     style = select_func.get_per_com(fund_summary,style)
 
@@ -70,7 +74,7 @@ def get_equity_fund(style,names,fund_summary,mflink):
     funds5.reset_index(drop=True, inplace=True)
 
     # merge name 
-    funds6 = pd.merge(funds5, names, on='crsp_fundno')
+    funds6 = pd.merge(funds5, last_names, on='crsp_fundno')
 
     # identify index and target date funds and drop them from the sample
     funds7 = select_func.del_index_fund(funds6)
@@ -81,9 +85,9 @@ def get_equity_fund(style,names,fund_summary,mflink):
 
     return equity_funds
 
-equity_funds = get_equity_fund(style,names,fund_summary,mflink)
+equity_funds = get_equity_fund(style,last_names,fund_summary,mflink)
 
-returns_tmp = select_func.get_tna_ret(tna_ret_nav,fund_fees,equity_funds)
+returns_tmp = select_func.get_tna_ret(tna_ret_nav,names,fund_fees,equity_funds)
 
 # aggregate multiple share class
 returns = select_func.aggregate(returns_tmp)
@@ -105,14 +109,31 @@ time_interval = 36
 least_month = 30
 returns = select_func.ex_least_obs(returns, time_interval, least_month)
 
+returns = returns[['wficn','date','mret','mtna','rret','turnover','exp_ratio','age','flow','vol','flow_vol','mgr_tenure']]
+
 # calculate abnormal return : mret adjusted by four factor
-returns_abr = select_func.get_abr(ff_monthly, returns)
+# returns_abr = select_func.get_abr(ff_monthly, returns)
 
 # get holding
-returns_char = select_func.get_holding(returns_abr, fund_char_result)
+returns_char = select_func.get_holding(returns, fund_char_result)
 
 # merge factor and macro,standardize
 returns_char = select_func.rank_macro_factor(returns_char, add_factor, macro)
+
+# get fund momentum
+returns_char = select_func.get_fund_mom(returns_char)
+
+# get fund capm rvar alpha beta
+returns_char = select_func.get_fund_capm(returns_char)
+
+# get fund ff4 alpha
+returns_char = select_func.get_fund_ff4(returns_char)
+
+# standardize fund charateristics
+returns_char = select_func.standard_fund_char(returns_char)
+
+# shift fund return,date to get lag char
+returns_char = select_func.shift_fund_date_ret(returns_char)
 
 # get summary table
 summary = select_func.get_summary(returns_char)
