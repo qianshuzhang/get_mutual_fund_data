@@ -113,6 +113,10 @@ reference : http://www-2.rotman.utoronto.ca/simutin/aw_code.asp
 
 	'capm_beta': CAPM regression slope
 
+	'fundmom1m': fund 1 month momentum 
 
+	'fundmom12m': fund 12 month momentum (from 2 - 12)
+
+	'fundmom36m': fund 36 month momentum (from 12 - 36)
 
 	
