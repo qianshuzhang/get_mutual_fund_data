@@ -119,4 +119,6 @@ reference : http://www-2.rotman.utoronto.ca/simutin/aw_code.asp
 
 	'fundmom36m': fund 36 month momentum (from 12 - 36)
 
+	'Rsquare': R-squared from rolling-window regression on FF5+MOM factors for previous 36 months
+
 	
